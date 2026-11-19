@@ -165,7 +165,7 @@ void TidalNx::run() {
             if (now - lastTry > std::chrono::seconds(5)) {
                 lastTry = now;
                 u32 version = 0;
-                if (R_SUCCEEDED(smGetService(&g_srv, TNX_SERVICE_NAME))) {
+                if (R_SUCCEEDED(tnxConnect(&g_srv))) {
                     if (R_SUCCEEDED(serviceDispatchOut(&g_srv, TnxCmd_GetVersion, version)) && version == TNX_IPC_VERSION) {
                         std::lock_guard<std::mutex> lk(m_mu);
                         m_connected = true;

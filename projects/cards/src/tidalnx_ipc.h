@@ -25,6 +25,10 @@
 // TnxStatus.needUrlTrack; la app la pide y la manda con SetTrackUrl.
 
 #include <stdint.h>
+#ifdef __SWITCH__
+#include <stdbool.h>
+#include <switch.h>
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -119,6 +123,28 @@ typedef struct
     char path[256];   // archivo AAC (.m4a) en la SD ("/config/..." o "sdmc:/..."); vacío = stream
     char cover[128];  // URL de la carátula, o vacío
 } TnxQueueEntry;
+
+#ifdef __SWITCH__
+// CLIENTES: no llamar smGetService(TNX_SERVICE_NAME) directo. Si el servicio no está registrado
+// (sysmodule apagado con sys-stop, no instalado o todavía arrancando), sm no devuelve error: deja
+// el pedido esperando hasta que alguien lo registre, o sea para siempre, y con él la sesión de sm
+// del proceso. Así se congelaba HOME (CardsNX) con el segundo plano apagado.
+// tnxConnect pregunta antes con el comando 65100 de Atmosphère (HasService, el de ovlSysmodules).
+static inline bool tnxServiceRunning(void)
+{
+    u8 has = 0;
+    SmServiceName name = smEncodeName(TNX_SERVICE_NAME);
+    Result rc = tipcDispatchInOut(smGetServiceSessionTipc(), 65100, name, has);
+    return R_SUCCEEDED(rc) && has != 0;
+}
+
+static inline Result tnxConnect(Service* out)
+{
+    if (!tnxServiceRunning())
+        return MAKERESULT(Module_Libnx, LibnxError_NotFound);
+    return smGetService(out, TNX_SERVICE_NAME);
+}
+#endif
 
 #ifdef __cplusplus
 }
