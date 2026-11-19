@@ -5458,29 +5458,22 @@ void CardsActivity::drawReturn(nxui::Renderer& r) {
 }
 
 bool CardsActivity::spotifyOn() const {
-    return false; // Spotify was taken out (2026-10-31): HOME music only
+    // Spotify was taken out (2026-10-31). Fork local: el panel muestra Tidal NX cuando el
+    // sysmodule tidalnx-sys tiene algo cargado (sonando o en pausa); si no, la música de HOME.
+    return m_tidal.active();
 }
 
 bool CardsActivity::spotifySignedIn() const {
-#ifdef SWITCHU_MENU
-    return m_spotify.signedIn();
-#else
-    return false;
-#endif
+    return true; // Tidal NX no pide iniciar sesión
 }
 
 void CardsActivity::spotifyDo(Spotify::Cmd c, int value) {
-#ifdef SWITCHU_MENU
-    if (!m_spotify.signedIn()) { // the sign-in, straight away
-        signInSpotify();
+    if (c == Spotify::Cmd::Shuffle) {
+        say("Shuffle is chosen in the Tidal NX app");
         return;
     }
-    m_spotify.command(c, value);
-    m_sp = m_spotify.now(); // its guess, at once
-#else
-    (void)c;
-    (void)value;
-#endif
+    m_tidal.command(c, value);
+    m_sp = m_tidal.now(); // its guess, at once
 }
 
 float CardsActivity::spotifyPos() const {
@@ -5490,23 +5483,15 @@ float CardsActivity::spotifyPos() const {
 }
 
 void CardsActivity::updateSpotify() {
-#ifdef SWITCHU_MENU
-    const bool watch = spotifyOn() && (m_musicOpen || m_quickOpen) && !m_leaving && !m_asleep;
-    if (watch != m_spWatch) {
-        m_spWatch = watch;
-        if (watch) m_spotify.start();
-        m_spotify.setWatching(watch);
-    }
-    if (!m_spWatch) return;
+    // Tidal NX en lugar de Spotify: su hilo sondea siempre (de a ratos) para saber si mostrarlo.
+    if (!m_tidal.started()) m_tidal.start();
+    m_tidal.setWatching((m_musicOpen || m_quickOpen) && !m_leaving && !m_asleep);
     const int dragged = m_sp.volume;
-    m_sp = m_spotify.now();
+    m_sp = m_tidal.now();
     if (m_musicVolDrag) m_sp.volume = dragged;
     std::vector<std::uint8_t> px;
     int w = 0, h = 0;
-    if (m_spotify.takeCover(px, w, h) && !px.empty()) m_spCover.loadFromPixels(app().gpu(), app().renderer(), px.data(), w, h);
-    const std::string error = m_spotify.takeError();
-    if (!error.empty()) say(error);
-#endif
+    if (m_tidal.takeCover(px, w, h) && !px.empty()) m_spCover.loadFromPixels(app().gpu(), app().renderer(), px.data(), w, h);
 }
 
 void CardsActivity::signInSpotify() {
@@ -5670,14 +5655,14 @@ void CardsActivity::drawMusic(nxui::Renderer& r) {
     const long now = m_audio.playing();
     const auto& titles = m_audio.titles();
     std::string song = m_settings.music && !m_audio.trackName().empty() ? m_audio.trackName() : std::string("Not playing");
-    if (spot) song = !m_sp.track.empty() ? m_sp.track : spotifySignedIn() ? "Nothing on Spotify" : "A signs in to Spotify";
+    if (spot) song = !m_sp.track.empty() ? m_sp.track : std::string("Nothing on Tidal NX");
     const float ts = fitScale(m_fTitle, song, kMusicInfoW, 0.7f);
     r.drawText(fit(m_fTitle, song, kMusicInfoW, ts), {kMusicInfoX, 150.f + dy}, &m_fTitle, kWhite.withAlpha(a), ts);
     std::string sub = tr("HOME music");
     if (now >= 0 && !titles.empty())
         sub += "    " + trf("Song {n} of {total}", {std::to_string(now + 1), std::to_string(titles.size())});
     if (!m_settings.music) sub = "Music is off: play to start it";
-    if (spot) sub = m_sp.active ? m_sp.artist : std::string("Play something in Spotify first");
+    if (spot) sub = m_sp.active ? m_sp.artist : std::string("Play something in Tidal NX first");
     r.drawText(fit(m_fBody, sub, kMusicInfoW), {kMusicInfoX, 194.f + dy}, &m_fBody, kMuted.withAlpha(a));
     const float length = spot ? m_sp.durationMs / 1000.f : m_audio.duration();
     const float songAt = spot ? spotifyPos() : m_settings.music ? m_audio.position() : 0.f;
@@ -5718,12 +5703,12 @@ void CardsActivity::drawMusic(nxui::Renderer& r) {
     // The playlist.
     r.drawRect({kMusicListX - 22.f, 112.f + dy, 1.f, kMusicListBottom - 100.f}, nxui::Color(1.f, 1.f, 1.f, 0.10f * a));
     icon(r, "playlist", kMusicListX + 10.f, 106.f + dy, 20.f, kMuted.withAlpha(a));
-    textMid(r, m_fPill, spot ? "Spotify" : "Playlist", kMusicListX + 30.f, 106.f + dy, kMuted.withAlpha(a), 0.9f);
+    textMid(r, m_fPill, spot ? "Tidal NX" : "Playlist", kMusicListX + 30.f, 106.f + dy, kMuted.withAlpha(a), 0.9f);
     const int songs = spot ? 0 : static_cast<int>(titles.size());
     if (spot) { // where it plays, instead of the songs
         const std::string where = m_sp.device.empty() ? std::string("No device playing") : trf("Playing on {device}", {m_sp.device});
         textMid(r, m_fBody, fit(m_fBody, where, kMusicListW - 10.f, 0.9f), kMusicListX + 10.f, 152.f + dy, kWhite.withAlpha(a), 0.9f);
-        textMid(r, m_fBody, "The buttons need Spotify Premium", kMusicListX + 10.f, 184.f + dy, kMuted.withAlpha(0.8f * a), 0.85f);
+        textMid(r, m_fBody, "Pick the music in the Tidal NX app", kMusicListX + 10.f, 184.f + dy, kMuted.withAlpha(0.8f * a), 0.85f);
     }
     const float want = std::clamp(m_musicRow * kMusicRowH - (kMusicListBottom - kMusicListTop) * 0.5f + kMusicRowH * 0.5f, 0.f,
                                   std::max(0.f, songs * kMusicRowH - (kMusicListBottom - kMusicListTop)));
@@ -10192,10 +10177,10 @@ void CardsActivity::drawQuick(nxui::Renderer& r) {
     box(player, false);
     const bool spot = spotifyOn();
     std::string song = m_settings.music && !m_audio.trackName().empty() ? m_audio.trackName() : std::string("Not playing");
-    if (spot) song = !m_sp.track.empty() ? m_sp.track : spotifySignedIn() ? "Nothing on Spotify" : "Play signs in to Spotify";
+    if (spot) song = !m_sp.track.empty() ? m_sp.track : std::string("Nothing on Tidal NX");
     const float ss = fitScale(m_fPill, song, w - 36.f, 0.8f);
     textMid(r, m_fPill, fit(m_fPill, song, w - 36.f, ss), player.x + 18.f, player.y + 26.f, kWhite.withAlpha(a), ss);
-    const std::string from = !spot ? tr("HOME music") : m_sp.artist.empty() ? std::string("Spotify") : "Spotify    " + m_sp.artist;
+    const std::string from = !spot ? tr("HOME music") : m_sp.artist.empty() ? std::string("Tidal NX") : "Tidal NX    " + m_sp.artist;
     textMid(r, m_fBody, fit(m_fBody, from, w - 36.f, 0.9f), player.x + 18.f, player.y + 50.f, kMuted.withAlpha(0.8f * a), 0.9f);
     const bool playing = spot ? m_sp.playing : m_settings.music && !m_audio.paused();
     const char* buttons[kQPlayerButtons] = {"prev", playing ? "pause" : "play", "next", "repeat", "shuffle", "playlist"};

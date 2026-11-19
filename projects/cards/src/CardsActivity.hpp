@@ -5,6 +5,7 @@
 #include "Settings.hpp"
 #include <switchu/lock_screen_policy.hpp>
 #include "Spotify.hpp"
+#include "TidalNx.hpp"
 
 #include <nxui/Activity.hpp>
 #include <nxui/core/Font.hpp>
@@ -376,6 +377,7 @@ private:
     Spotify m_spotify;
     bool m_spWatch = false;
 #endif
+    TidalNx m_tidal; // Tidal NX: lo que suena en el sysmodule tidalnx-sys (fork local)
     // + > Title picture: the game's pictures to choose from, in a grid.
     bool m_pickOpen = false;
     Game m_pickGame;
