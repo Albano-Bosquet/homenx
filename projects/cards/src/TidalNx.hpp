@@ -10,7 +10,7 @@
 namespace cards {
 
 // Tidal NX en el reproductor de HOME (fork local): lo que suena en el sysmodule tidalnx-sys
-// (https://github.com/ de Tidal NX, servicio IPC "tidalnx", ver tidalnx_ipc.h) y sus botones.
+// (https://github.com/Albano-Bosquet/TidalNX, servicio IPC "tidalnx", ver tidalnx_ipc.h) y sus botones.
 // A diferencia de Spotify, la música suena en la propia Switch y no hace falta iniciar sesión:
 // todo es local, por IPC. Solo la carátula se baja de resources.tidal.com.
 //
